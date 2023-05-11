@@ -1,5 +1,9 @@
 # mldr.resampling
 
+[![CRAN_Status_Badge](https://www.r-pkg.org/badges/version/mldr.resampling)](https://CRAN.R-project.org/package=mldr.resampling)
+[![Downloads](http://cranlogs.r-pkg.org/badges/mldr.resampling)](https://cran.r-project.org/package=mldr.resampling)
+[![TotalDownloads](http://cranlogs.r-pkg.org/badges/grand-total/mldr.resampling?color=yellow)](https://cran.r-project.org/package=mldr.resampling)
+
 Collection of the state of the art multilabel resampling algorithms. The objective of these algorithms is to achieve balance in multilabel datasets.
 
 ## Installation
@@ -33,9 +37,7 @@ This package has an interface function that can be called in order to execute th
 ```R
 library(mldr.resampling)
 
-# Data sets birds, emotions and genbase are
-# provided within the package mldr
-resample(bibtex, c("MLSOL", "MLeNN"), P=30, k=5, TH=0.4)
+resample(birds, c("MLSOL", "MLeNN"), P=30, k=5, TH=0.4)
 ```
 
 For more examples and detailed explanation on available functions, please refer to the documentation.

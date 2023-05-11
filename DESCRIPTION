@@ -1,6 +1,6 @@
 Package: mldr.resampling
 Title: Resampling Algorithms for Multi-Label Datasets
-Version: 0.2
+Version: 0.2.1
 Authors@R: c(
     person("Miguel Ángel", "Dávila", email = "madr0008@red.ujaen.es", role = "cre"),
     person("Francisco", "Charte", email = "fcharte@ujaen.es", role = "aut", comment = c(ORCID = "0000-0002-3083-8942")),
@@ -13,10 +13,10 @@ RoxygenNote: 7.2.3
 Imports: data.table, e1071, mldr, pbapply, vecsets
 Suggests: parallel
 NeedsCompilation: no
-Packaged: 2023-04-20 21:35:47 UTC; mdavila
+Packaged: 2023-05-11 12:32:21 UTC; mdavila
 Author: Miguel Ángel Dávila [cre],
   Francisco Charte [aut] (<https://orcid.org/0000-0002-3083-8942>),
   María José Del Jesus [aut] (<https://orcid.org/0000-0002-7891-3059>)
 Maintainer: Miguel Ángel Dávila <madr0008@red.ujaen.es>
 Repository: CRAN
-Date/Publication: 2023-04-21 08:12:31 UTC
+Date/Publication: 2023-05-11 12:50:02 UTC

@@ -92,7 +92,7 @@ calculateTableVDM <- function(D) {
 
     }, mc.cores=mldr.resampling.env$.numCores)
 
-  }, mc.cores=mldr.resampling.env$.numCores)
+  }, mc.cores=mldr.resampling.env$.numCores, parL=c("D"), parEnv=environment())
 
   df
 
@@ -122,21 +122,29 @@ getNN <- function(sample, rest, label, D, tableVDM=NULL) {
 #' @param seedInstance Sample we are using as "template"
 #' @param refNeigh Reference neighbor
 #' @param neighbors Neighbors to take into account
+#' @param strategy Strategy for choosing the synthetic labels: union, intersection or ranking
 #' @param D mld \code{mldr} object with the multilabel dataset to preprocess
 #'
 #' @return A synthetic sample derived from the one passed as a parameter and its neighbors
-newSample <- function(seedInstance, refNeigh, neighbors, D) {
+newSample <- function(seedInstance, refNeigh, neighbors, strategy, D) {
+
+  if (strategy == "union") {
+    labels <- as.numeric(D$dataset[seedInstance,D$labels$index] | D$dataset[neighbors,D$labels$index])
+  } else if (strategy == "intersection") {
+    labels <- as.numeric(D$dataset[seedInstance,D$labels$index] & D$dataset[neighbors,D$labels$index])
+  } else {
+    labels <- unlist(mldr.resampling.env$.mldrApplyFun1(mldr.resampling.env$.mldrApplyFun1(D$dataset[c(seedInstance, neighbors),D$labels$index], sum, mc.cores=mldr.resampling.env$.numCores), function(x) { #Labels
+                ifelse(x > ((length(neighbors)+1)/2), 1, 0)
+              }, mc.cores=mldr.resampling.env$.numCores),)
+  }
 
   c(
     mldr.resampling.env$.mldrApplyFun1(D$attributesIndexes[1:D$measures$num.inputs], function(i) { #Attributes
       ifelse(D$attributes[[i]] %in% c("numeric", "Date"),
              D$dataset[seedInstance,i] + (D$dataset[refNeigh,i] - D$dataset[seedInstance,i])*stats::runif(1, 0, 1), #Numeric attributes
              utils::tail(names(sort(table(D$dataset[neighbors, i]))), 1)) #Non numeric attributes
-    }, mc.cores=mldr.resampling.env$.numCores),
-    unlist(mldr.resampling.env$.mldrApplyFun1(mldr.resampling.env$.mldrApplyFun1(D$dataset[c(seedInstance, neighbors),D$labels$index], sum, mc.cores=mldr.resampling.env$.numCores), function(x) { #Labels
-      ifelse(x > ((length(neighbors)+1)/2), 1, 0)
-    }, mc.cores=mldr.resampling.env$.numCores),
-  ))
+    }, mc.cores=mldr.resampling.env$.numCores), labels
+  )
 
 }
 
@@ -183,7 +191,7 @@ initTypes <- function(C, neighbors, k, minoritary, D, d) {
         }
       }
     }, mc.cores=mldr.resampling.env$.numCores))
-  }, mc.cores=mldr.resampling.env$.numCores)
+  }, mc.cores=mldr.resampling.env$.numCores, parL=c("D", "minoritary", "C"), parEnv=environment())
 
   change <- TRUE
   while (change) {
@@ -292,7 +300,7 @@ getAllNeighbors <- function(D, d, tableVDM=NULL) {
     if (length(activeLabels) > 0) {
       getNN(i, d, ifelse(length(activeLabels)==1,activeLabels,sample(activeLabels,1)), D, tableVDM)
     }
-  }, mc.cores=mldr.resampling.env$.numCores)
+  }, mc.cores=mldr.resampling.env$.numCores, parL=c("D", "tableVDM"), parEnv=environment())
 
 }
 
@@ -309,7 +317,7 @@ getAllNeighbors2 <- function(neighbors, d, k) {
 
   mldr.resampling.env$.mldrApplyFun2(neighbors, function(x) {
     intersect(x, d)[1:k+1]
-  }, mc.cores=mldr.resampling.env$.numCores)
+  }, mc.cores=mldr.resampling.env$.numCores, parL=c("d", "k"), parEnv=environment())
 
 }
 
@@ -331,7 +339,7 @@ getC <- function(D, d, neighbors, k) {
         ifelse(D$dataset[i,j]==D$dataset[m,j],0,1)
       }, mc.cores=mldr.resampling.env$.numCores)))
     }, mc.cores=mldr.resampling.env$.numCores))
-  }, mc.cores=mldr.resampling.env$.numCores)
+  }, mc.cores=mldr.resampling.env$.numCores, parL=c("D", "neighbors", "k"), parEnv=environment())
 
 }
 
@@ -359,7 +367,7 @@ getS <- function(D, d, C, minoritary) {
         -1
       }
     }, mc.cores=mldr.resampling.env$.numCores))
-  }, mc.cores=mldr.resampling.env$.numCores)
+  }, mc.cores=mldr.resampling.env$.numCores, parL=c("D", "C", "minoritary"), parEnv=environment())
 
 }
 
@@ -367,15 +375,14 @@ getS <- function(D, d, C, minoritary) {
 
 #' Auxiliary function used by MLSOL and MLUL. For non outlier instances, it aggregates the values of S for each label
 #'
-#' @param D mld \code{mldr} object with the multilabel dataset to preprocess
 #' @param S Structure with the proportion of neighbors having an opposite class with respect to an instance and label, normalized by the global class imbalance
 #'
 #' @return A vector of weights to be considered when oversampling for each instance
-getW <- function(D, S) {
+getW <- function(S) {
 
   mldr.resampling.env$.mldrApplyFun2(c(1:length(S)), function(i) {
     sum(S[[i]][!S[[i]] %in% -1])
-  }, mc.cores=mldr.resampling.env$.numCores)
+  }, mc.cores=mldr.resampling.env$.numCores, parL=c("S"), parEnv=environment())
 
 }
 
@@ -392,7 +399,7 @@ getAllReverseNeighbors <- function(d, neighbors, k) {
 
   mldr.resampling.env$.mldrApplyFun2(d, function(i) {
     ceiling(which(unlist(neighbors)==i)/k)
-  }, mc.cores=mldr.resampling.env$.numCores)
+  }, mc.cores=mldr.resampling.env$.numCores, parL=c("neighbors", "k"), parEnv=environment())
 
 }
 
@@ -422,7 +429,7 @@ getU <- function(D, d, rNeighbors, S) {
 
     }, mc.cores=mldr.resampling.env$.numCores)))
 
-  }, mc.cores=mldr.resampling.env$.numCores)
+  }, mc.cores=mldr.resampling.env$.numCores, parL=c("D", "rNeighbors", "S"), parEnv=environment())
 
 }
 
@@ -438,7 +445,7 @@ getV <- function(w, u) {
 
   v <- mldr.resampling.env$.mldrApplyFun2(c(1:length(w)), function(i) {
          w[[i]] + u[[i]]
-       }, mc.cores=mldr.resampling.env$.numCores)
+       }, mc.cores=mldr.resampling.env$.numCores, parL=c("w", "u"), parEnv=environment())
 
   minimum <- min(unlist(v))
 
@@ -457,13 +464,14 @@ getV <- function(w, u) {
 #' @param P Percentage in which the original dataset is increased/decreased (if required by the algorithm)
 #' @param k Number of neighbors taken into account for each instance (if required by the algorithm)
 #' @param TH Threshold for the Hamming Distance in order to consider an instance different to another one (if required by the algorithm)
+#' @param strategy Strategy for choosing the synthetic labels (if required by the algorithm). Possible values: "union", "intersection" and "ranking" (default)
 #' @param outputDirectory Route with the directory where the generated ARFF file will be stored
 #' @param neighbors Structure with all instances and neighbors in the dataset, useful in MLSOL and MLUL
 #' @param neighbors2 Structure with some instances and neighbors in the dataset, useful in MLeNN and MLTL
 #' @param tableVDM Dataframe object containing previous calculations for faster processing. If it is empty, the algorithm will be slower
 #'
 #' @return Time (in seconds) taken to execute the algorithm (NULL if no algorithm was executed)
-executeAlgorithm <- function(D, a, P, k, TH, outputDirectory, neighbors, neighbors2, tableVDM) {
+executeAlgorithm <- function(D, a, P, k, TH, strategy, outputDirectory, neighbors, neighbors2, tableVDM) {
 
   if (!(a %in% c("LPROS", "LPRUS", "MLROS", "MLRUS", "MLRkNNOS", "MLSMOTE", "MLSOL", "MLUL", "MLeNN", "MLTL", "REMEDIAL"))) {
     message(paste("Error: There is no algorithm named", a))
@@ -477,7 +485,13 @@ executeAlgorithm <- function(D, a, P, k, TH, outputDirectory, neighbors, neighbo
       startTime <- Sys.time()
       d <- f(D, P)
       endTime <- Sys.time()
-    } else if (a %in% c("MLRkNNOS", "MLSMOTE")) {
+    } else if (a == "MLSMOTE") {
+      name <- paste(D$name, a, "k", k, "strategy", strategy, sep = "_")
+      message(paste("Running",a,"on",D$name,"with k =",k,"and strategy =",strategy))
+      startTime <- Sys.time()
+      d <- f(D, k, strategy, tableVDM)
+      endTime <- Sys.time()
+    } else if (a == "MLRkNNOS") {
       name <- paste(D$name, a, "k", k, sep = "_")
       message(paste("Running",a,"on",D$name,"with k =",k))
       startTime <- Sys.time()
@@ -502,7 +516,7 @@ executeAlgorithm <- function(D, a, P, k, TH, outputDirectory, neighbors, neighbo
       d <- f(D, TH, neighbors2, tableVDM)
       endTime <- Sys.time()
     } else { #REMEDIAL
-      name <- a
+      name <- paste(D$name, a, sep = "_")
       message(paste("Running",a,"on",D$name))
       startTime <- Sys.time()
       d <- f(D)
@@ -530,6 +544,7 @@ executeAlgorithm <- function(D, a, P, k, TH, outputDirectory, neighbors, neighbo
 #' @param P Percentage in which the original dataset is increased/decreased, if required by the algorithm(s). Defaults to 25
 #' @param k Number of neighbors taken into account for each instance, if required by the algorithm(s). Defaults to 3
 #' @param TH Threshold for the Hamming Distance in order to consider an instance different to another one, if required by the algorithm(s). Defaults to 0.5
+#' @param strategy Strategy for choosing the synthetic labels, if required by the algorithm. Defaults to ranking
 #' @param params Dataframe with 4 columns: name of the algorithm, P, k and TH, in that order, to execute several algorithms with different values for their parameters
 #' @param outputDirectory Route with the directory where generated ARFF files will be stored. Defaults to a temporary directory
 #'
@@ -541,7 +556,7 @@ executeAlgorithm <- function(D, a, P, k, TH, outputDirectory, neighbors, neighbo
 #' resample(birds, "LPROS", P=25)
 #' resample(birds, c("LPROS", "LPRUS"), P=30)
 #' @export
-resample <- function(D, algorithms, P=25, k=3, TH=0.5, params, outputDirectory=tempdir()) {
+resample <- function(D, algorithms, P=25, k=3, TH=0.5, strategy="ranking", params, outputDirectory=tempdir()) {
 
   times <- data.frame(matrix(nrow = 0, ncol = 2))
   colnames(times) <- c("algorithm", "time")
@@ -596,7 +611,7 @@ resample <- function(D, algorithms, P=25, k=3, TH=0.5, params, outputDirectory=t
 
         for(i in 1:nrow(params)) {
 
-          time <- executeAlgorithm(D,params[i,1],params[i,2],params[i,3],params[i,4], neighbors, neighbors2)
+          time <- executeAlgorithm(D,params[i,1],params[i,2],params[i,3],params[i,4],params[i,5], outputDirectory, neighbors, neighbors2, tableVDM)
 
           if (!is.null(time)) {
             times[nrow(times) + 1,] <- c(a,time)
@@ -650,7 +665,7 @@ resample <- function(D, algorithms, P=25, k=3, TH=0.5, params, outputDirectory=t
 
       for (a in algorithms) {
 
-        time <- executeAlgorithm(D, a, P, k, TH, outputDirectory, neighbors, neighbors2, tableVDM)
+        time <- executeAlgorithm(D, a, P, k, TH, strategy, outputDirectory, neighbors, neighbors2, tableVDM)
 
         if (!is.null(time)) {
           times[nrow(times) + 1,] <- c(a,time)
@@ -717,12 +732,27 @@ getNumCores <- function() {
 #' @export
 setParallel <- function(beParallel) {
   if (!beParallel) {
-    assign('.mldrApplyFun2', function(x, l, mc.cores) { pbapply::pblapply(x,l) }, mldr.resampling.env)
+    assign('.mldrApplyFun2', function(parV, parF, mc.cores, parL, parEnv) { pbapply::pblapply(parV, parF) }, mldr.resampling.env)
     message("Parallel computing disabled")
   } else {
+    setNumCores(parallel::detectCores())
     if (requireNamespace("parallel", quietly = TRUE)) {
-      setNumCores(parallel::detectCores())
-      assign('.mldrApplyFun2', parallel::mclapply, mldr.resampling.env)
+      if(.Platform$OS.type == "windows") {
+        windowsParallel <- function(parV, parF, mc.cores, parL, parEnv) {
+          cl <- parallel::makeCluster(mc.cores)
+          parallel::clusterExport(cl, varlist=parL, envir=parEnv)
+          ret <- parallel::parLapply(cl, parV, parF)
+          parallel::stopCluster(cl)
+          ret
+        }
+        assign('.mldrApplyFun2', windowsParallel, mldr.resampling.env)
+      } else {
+        setNumCores(parallel::detectCores())
+        unixParallel <- function(parV, parF, mc.cores, parL, parEnv) {
+          parallel::mclapply(parV, parF, mc.cores=mc.cores)
+        }
+        assign('.mldrApplyFun2', unixParallel, mldr.resampling.env)
+      }
       message(paste("Parallel computing enabled on all",getNumCores(),"available cores. Use function setNumCores if you wish to modify it"))
     } else {
       message("You have to install package parallel in order to enable parallel computing")
